@@ -1,6 +1,6 @@
-![image-20260609130639206](C:\Users\12894\AppData\Roaming\Typora\typora-user-images\image-20260609130639206.png)
+![image-1](./pics/image-20260609130639206.png)
 
-![image-20260609130705983](C:\Users\12894\AppData\Roaming\Typora\typora-user-images\image-20260609130705983.png)
+![image-2](./pics/image-20260609130705983.png)
 
 # Engent
 
