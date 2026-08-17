@@ -4,7 +4,7 @@
 import type { JwtTokenStatus, User } from '@authing/guard-react18';
 import { useGuard } from '@authing/guard-react18';
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 
@@ -12,9 +12,7 @@ export default function Callback() {
     const navigate = useNavigate()
     const guard = useGuard()
 
-    
-
-    const handleCallback = async () => {
+    const handleCallback = useCallback(async () => {
         try {
             // 1. 触发 guard.handleRedirectCallback() 方法完成登录认证
             // 用户认证成功之后，我们会将用户的身份凭证存到浏览器的本地缓存中
@@ -47,19 +45,18 @@ export default function Callback() {
             console.error('Guard handleAuthingLoginCallback error: ', e)
             navigate('/login', { replace: true })
         }
-    }
+    }, [navigate, guard])
 
-    let handled = false
-    
+    const handledRef = useRef(false)
+
     useEffect(() => {
-        
         const run = async () => {
-            if (handled) return
-            handled = true
+            if (handledRef.current) return
+            handledRef.current = true
             await handleCallback()
         }
         run()
-    }, [])
+    }, [handleCallback])
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
