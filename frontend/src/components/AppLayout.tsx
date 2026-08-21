@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Outlet } from 'react-router-dom'
-import { useGuard } from '@authing/guard-react18'
-import type { User } from '@authing/guard-react18'
+import { clearToken } from '../api/token'
+import { http } from '../api/http'
 import ConversationList from './conversation/ConversationList'
 import Button from './ui/Button'
 import KnowledgePanel from './knowledge/KnowledgePanel'
@@ -10,8 +10,35 @@ import { KnowledgeProvider } from '../context/KnowledgeProvider'
 import { useKnowledgeContext } from '../context/useKnowledgeContext'
 import { useConversationsContext } from '../context/useConversationsContext'
 
+/** Authing userinfo 返回的用户信息（后端代理 /api/auth/me） */
+interface AuthUser {
+  sub?: string
+  name?: string | null
+  nickname?: string | null
+  username?: string | null
+  preferred_username?: string | null
+  email?: string | null
+  phone_number?: string | null
+  picture?: string | null
+  avatar?: string | null
+}
+
 function cn(...classes: (string | false | undefined | null)[]) {
   return classes.filter(Boolean).join(' ')
+}
+
+/** 从 Guard 缓存的 _authing_user 中读取登录账号（Guard 登录成功时会写入 localStorage） */
+function getLocalUsername(): string | null {
+  try {
+    const raw = localStorage.getItem('_authing_user')
+    if (!raw) return null
+    const data = JSON.parse(raw) as { username?: unknown }
+    return typeof data.username === 'string' && data.username.trim()
+      ? data.username.trim()
+      : null
+  } catch {
+    return null
+  }
 }
 
 function MenuIcon() {
@@ -239,16 +266,19 @@ export default function AppLayout() {
 }
 
 function LayoutContent() {
-  const guard = useGuard()
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [leftOpen, setLeftOpen] = useState(false)
   const [rightOpen, setRightOpen] = useState(false)
   const { conversations, activeId, selectConversation, deleteConversation, createConversation } =
     useConversationsContext()
 
   useEffect(() => {
-    guard.trackSession().then(setUser)
-  }, [guard])
+    // 通过后端代理获取当前登录用户（不再依赖 Guard trackSession 的跨域会话）
+    http
+      .get<AuthUser>('/auth/me')
+      .then(setUser)
+      .catch(() => setUser(null))
+  }, [])
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)')
@@ -280,13 +310,31 @@ function LayoutContent() {
     }
   }, [leftOpen, rightOpen])
 
-  const handleLogout = async () => {
-    await guard.logout({
-      redirectUri: `${window.location.origin}/login`,
-    })
+  const handleLogout = () => {
+    // 1. 先清除本地凭证（本应用 token）
+    clearToken()
+    // 2. 跳转 Authing 登出端点，清除 Authing 域名下的会话 cookie。
+    //    否则回到 /login 后 startWithRedirect 会发现 Authing 已登录 → 自动登录跳回，
+    //    导致“退出不了、总是自动登录”。
+    //    注意：redirect_uri 需在 Authing 控制台「应用配置 → 登出回调 URL」白名单中，
+    //    否则该地址登出后无法自动跳回（可在控制台将站点登录页加入白名单）。
+    const siteOrigin = window.location.origin
+    const logoutUrl = `https://engent.authing.cn/login/profile/logout?redirect_uri=${encodeURIComponent(`${siteOrigin}/login`)}`
+    window.location.href = logoutUrl
   }
 
-  const displayName = user?.nickname || user?.username || '用户'
+  // 用户名：Authing 用户可能未设置姓名（name/nickname 为空），
+  // 依次回退到登录账号（preferred_username）、本地缓存的 _authing_user.username、
+  // 邮箱、手机号，最后才是占位符
+  const displayName =
+    user?.name ||
+    user?.nickname ||
+    user?.preferred_username ||
+    user?.username ||
+    getLocalUsername() ||
+    user?.email ||
+    user?.phone_number ||
+    '用户'
   const avatarLetter = displayName.charAt(0).toUpperCase()
 
   return (

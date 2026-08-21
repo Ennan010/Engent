@@ -16,4 +16,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          // React 运行时与路由单独成 chunk
+          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('react-router')) return 'vendor'
+          return undefined
+        },
+      },
+    },
+  },
 })

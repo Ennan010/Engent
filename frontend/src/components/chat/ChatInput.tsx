@@ -38,7 +38,7 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          placeholder="输入消息，Enter 发送，Shift+Enter 换行"
+          placeholder={disabled ? '正在回答…' : '输入消息，Enter 发送，Shift+Enter 换行'}
           rows={1}
           className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:bg-white focus:outline-none disabled:opacity-60"
         />
@@ -46,9 +46,10 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
           type="submit"
           variant="secondary"
           disabled={disabled || !value.trim()}
+          loading={disabled}
           className="shrink-0 border-transparent enabled:!bg-gray-900 enabled:!text-white enabled:hover:!bg-gray-800 enabled:hover:!text-white enabled:active:!bg-gray-950 disabled:!bg-gray-100 disabled:!text-gray-400 disabled:opacity-100"
         >
-          发送
+          {disabled ? '生成中' : '发送'}
         </Button>
       </div>
     </form>

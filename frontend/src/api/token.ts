@@ -10,4 +10,6 @@ export function getToken(): string | null {
 
 export function clearToken(): void {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
+  // 兼容 Guard 缓存结构：id_token 一并清除
+  localStorage.removeItem('idToken')
 }

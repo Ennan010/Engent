@@ -1,13 +1,15 @@
+import { lazy, Suspense } from "react";
 import { useRoutes } from "react-router-dom";
-// import Home from '../pages/Home'
-import Login from '../pages/Login'
-import ChatPage from '../pages/ChatPage'
-import Callback from '../pages/Callback'
+
+// 路由级懒加载：登录/回调/聊天/主布局按需加载，减小首屏 bundle 体积
+const Login = lazy(() => import('../pages/Login'))
+const Callback = lazy(() => import('../pages/Callback'))
+const ChatPage = lazy(() => import('../pages/ChatPage'))
+const AppLayout = lazy(() => import('../components/AppLayout'))
 import AuthGuard from "../components/AuthGuard";
-import AppLayout from "../components/AppLayout";
 
 export default function Router() {
-    return useRoutes([
+    const routes = useRoutes([
         {
             path: "/login",
             element: <Login />
@@ -37,4 +39,9 @@ export default function Router() {
         // { path: '*', element: <NotFound /> }
     ])
 
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-500">加载中...</div>}>
+            {routes}
+        </Suspense>
+    )
 }

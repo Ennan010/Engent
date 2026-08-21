@@ -57,10 +57,10 @@ async function bootstrap() {
     await ensureSqlitePragmas()
     await sequelize.sync()
     console.log('[db] 数据库连接成功，数据表已同步')
-    app.listen(PORT, () => {
-      console.log(`[server] Engent 后端已启动: http://localhost:${PORT}`)
-      console.log(`[server] 健康检查: http://localhost:${PORT}/health`)
+    app.listen(PORT, '127.0.0.1', () => {
+      console.log(`[server] Engent 后端已启动: http://127.0.0.1:${PORT}`)
     })
+
   } catch (err) {
     console.error('[db] 数据库初始化失败:', err)
     process.exit(1)

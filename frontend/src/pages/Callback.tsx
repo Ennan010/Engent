@@ -1,62 +1,53 @@
 // Callback.tsx
-// React 18
-// 代码示例：https://github.com/Authing/Guard/blob/v5/examples/guard-react18/normal/src/pages/Callback.tsx
-import type { JwtTokenStatus, User } from '@authing/guard-react18';
-import { useGuard } from '@authing/guard-react18';
-
-import { useCallback, useEffect, useRef } from 'react';
+// 登录回调：授权码换 token 改为走后端代理（后端服务器直连 Authing，避免浏览器跨域 Cookie 问题）
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { http } from '../api/http';
 
+interface TokenResponse {
+  access_token: string
+  id_token: string | null
+}
 
 export default function Callback() {
     const navigate = useNavigate()
-    const guard = useGuard()
-
-    const handleCallback = useCallback(async () => {
-        try {
-            // 1. 触发 guard.handleRedirectCallback() 方法完成登录认证
-            // 用户认证成功之后，我们会将用户的身份凭证存到浏览器的本地缓存中
-            await guard.handleRedirectCallback()
-
-            // 2. 处理完 handleRedirectCallback 之后，你需要先检查用户登录态是否正常
-            const loginStatus: JwtTokenStatus | undefined = await guard.checkLoginStatus()
-
-            if (!loginStatus) {
-                return console.error('Guard is not get login status')
-            }
-
-            // 3. 获取到登录用户的用户信息
-            const userInfo: User | null = await guard.trackSession()
-
-            console.log(userInfo)
-
-            // 你也可以重定向到你的任意业务页面，比如重定向到用户的个人中心
-            // 如果你希望实现登录后跳转到同一页面的效果，可以通过在调用 startWithRedirect 时传入的自定义 state 实现
-            // 之后你在这些页面可以通过 trackSession 方法获取用户登录态和用户信息
-
-            // 示例一：跳转到固定页面
-            navigate('/')
-
-            // 示例二：获取自定义 state，进行特定操作
-            // const search = window.location.search
-            // 从 URL search 中解析 state
-        } catch (e) {
-            // 登录失败，推荐再次跳转到登录页面
-            console.error('Guard handleAuthingLoginCallback error: ', e)
-            navigate('/login', { replace: true })
-        }
-    }, [navigate, guard])
-
     const handledRef = useRef(false)
 
     useEffect(() => {
+        if (handledRef.current) return
+        handledRef.current = true
+
         const run = async () => {
-            if (handledRef.current) return
-            handledRef.current = true
-            await handleCallback()
+            try {
+                // 1. 从 URL 取授权码 code
+                const params = new URLSearchParams(window.location.search)
+                const code = params.get('code')
+                if (!code) throw new Error('URL 中缺少 code 参数')
+
+                // 2. 取出 Guard startWithRedirect 时缓存的 PKCE code_verifier
+                const codeVerifier = localStorage.getItem('codeChallenge') ?? ''
+
+                // 3. 后端代理换 token（服务器直连 Authing，不受浏览器跨域/Cookie 影响）
+                const res = await http.post<TokenResponse>('/auth/oidc/callback', {
+                    code,
+                    code_verifier: codeVerifier,
+                })
+                if (!res?.access_token) throw new Error('未获取到 access_token')
+
+                // 4. 缓存身份凭证（与 Guard 的 key 保持一致，业务 API 读取 accessToken）
+                localStorage.setItem('accessToken', res.access_token)
+                if (res.id_token) localStorage.setItem('idToken', res.id_token)
+
+                // 5. 跳转主页面
+                navigate('/', { replace: true })
+            } catch (e) {
+                // 登录失败，推荐再次跳转到登录页面
+                console.error('登录回调失败: ', e)
+                navigate('/login', { replace: true })
+            }
         }
         run()
-    }, [handleCallback])
+    }, [navigate])
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">

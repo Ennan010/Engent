@@ -9,6 +9,7 @@ import {
   type LlmMessage,
 } from '../services/llm.js'
 import { buildRagContext } from '../services/rag.js'
+import { buildWebSearchContext } from '../services/webSearch.js'
 
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(8000),
@@ -29,7 +30,7 @@ async function loadHistory(conversationId: string): Promise<LlmMessage[]> {
 
 /**
  * 组装发送给 LLM 的完整消息：
- * 系统提示（含 RAG 检索到的知识库上下文，若该问题判定需要检索）+ 会话历史
+ * 系统提示（联网搜索结果优先，其次 RAG 检索到的知识库上下文，均按判定触发）+ 会话历史
  */
 async function buildLlmMessages(
   userId: string,
@@ -37,9 +38,10 @@ async function buildLlmMessages(
   userContent: string,
 ): Promise<LlmMessage[]> {
   const history = await loadHistory(conversationId)
-  const ragContext = await buildRagContext(userId, userContent)
-  const systemContent = ragContext
-    ? `${DEFAULT_SYSTEM_PROMPT}\n\n${ragContext}`
+  // 时效性问题（新闻/天气/行情等）优先注入联网搜索资料；否则回退到知识库 RAG
+  const context = (await buildWebSearchContext(userContent)) ?? (await buildRagContext(userId, userContent))
+  const systemContent = context
+    ? `${DEFAULT_SYSTEM_PROMPT}\n\n${context}`
     : DEFAULT_SYSTEM_PROMPT
   return [
     { role: 'system', content: systemContent },

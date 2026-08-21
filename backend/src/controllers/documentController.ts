@@ -18,6 +18,16 @@ export const upload = multer({
   limits: { fileSize: MAX_DOC_SIZE },
 })
 
+/**
+ * 修复 multer/busboy 的中文文件名乱码。
+ * busboy 对 multipart 的 filename 默认按 latin1 解码，中文文件名（UTF-8 字节）会变成
+ * "ä¸ªäººç®å" 之类的乱码；此处把 latin1 字节按 UTF-8 重新解码还原。
+ * 纯 ASCII 文件名（如 a.pdf）在两种编码下字节一致，转换后保持不变，可放心统一处理。
+ */
+function fixOriginalName(name: string): string {
+  return Buffer.from(name, 'latin1').toString('utf8')
+}
+
 function toDto(doc: Document) {
   return {
     id: doc.id,
@@ -40,19 +50,20 @@ export async function uploadDocument(req: Request, res: Response, next: NextFunc
       return res.status(400).json({ error: '未接收到文件' })
     }
     const file = req.file
+    const originalName = fixOriginalName(file.originalname)
 
     // 先落一条 processing 记录，失败时前端可看到具体错误
     doc = await Document.create({
       userId,
-      name: file.originalname,
-      type: detectDocType(file.originalname) ?? 'unknown',
+      name: originalName,
+      type: detectDocType(originalName) ?? 'unknown',
       size: file.size,
       chunkCount: 0,
       status: 'processing',
     })
 
     try {
-      const text = await parseDocument(file.originalname, file.buffer)
+      const text = await parseDocument(originalName, file.buffer)
       const chunks = chunkText(text)
       if (chunks.length === 0) {
         throw new DocumentParseError('未能从文档中提取到有效内容')
